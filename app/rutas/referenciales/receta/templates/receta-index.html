@@ -1,0 +1,260 @@
+{% extends 'base.html' %}
+
+{% block titulo %}
+Recetas
+{% endblock %}
+
+{% block contenido %}
+<div class="container mt-4">
+    <h3>Listar Recetas</h3>
+
+    <!-- tarjeta -->
+    <div class="card">
+      <div class="card-header">
+        <button type="button" class="btn btn-primary" id="btnAgregar">Agregar</button>
+      </div>
+      <div class="card-body">
+        <table class="table table-striped" id="tbl">
+          <thead>
+            <tr>
+              <th>Paciente</th>
+              <th>Médico</th>
+              <th>Descripción</th>
+              <th>Fecha</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+      </table>
+      </div>
+    </div>
+    <!-- /tarjeta -->
+
+    <!-- El formulario -->
+    <div class="modal" id="modalFormulario">
+      <!-- La clase modal-dialog-centered centra el modal -->
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+
+          <!-- Modal Header -->
+          <div class="modal-header">
+            <h4 class="modal-title" id="modalTitle"></h4>
+            <button type="button" class="close" data-dismiss="modal">&times;</button>
+          </div>
+
+          <!-- Modal body -->
+          <div class="modal-body">
+            <div class="form-group">
+              <input type="hidden" id="txtIdReceta">
+              <label for="txtPaciente">Paciente:</label>
+              <input type="text" class="form-control" placeholder="Nombre del paciente" id="txtPaciente">
+              <label for="txtMedico">Médico:</label>
+              <input type="text" class="form-control" placeholder="Nombre del médico" id="txtMedico">
+              <label for="txtDescripcion">Descripción:</label>
+              <input type="text" class="form-control" placeholder="Descripción" id="txtDescripcion">
+              <label for="txtFecha">Fecha:</label>
+              <input type="date" class="form-control" id="txtFecha">
+            </div>
+          </div>
+
+          <!-- Modal footer -->
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" id="btnGuardar">Guardar</button>
+            <button type="button" class="btn btn-danger" data-dismiss="modal">Cerrar</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-4 d-none" id="rowAlerta">
+        <div class="col col-md-12">
+            <div class="alert alert-success">
+                <strong>Registro Exitoso!</strong>
+                <div class="row" id="mostrarAlerta"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script>
+  const initDatatable = () => {
+    $('#tbl').DataTable({
+      language: {
+        url: "{{ url_for('static', filename='vendor/datatables/es-ES.json') }}",
+      },
+      ajax:'/api/v1/recetas',
+      columns: [
+        { data: 'paciente' },
+        { data: 'medico' },
+        { data: 'descripcion' },
+        { data: 'fecha' },
+        { data: function(row) {
+            return `<button type="button" name="btn_editar" class="btn btn-primary" data-id="${row.id}">Editar</button>
+                    <button type="button" name="btn_eliminar" class="btn btn-danger" data-id="${row.id}">Eliminar</button>`
+          }
+        }
+      ]
+    });
+  }
+
+  const agregar = () => {
+    $('#btnAgregar').on('click', function(){
+      $('#modalTitle').text("Agregar una Receta");
+      $('#txtIdReceta').val("");
+      $('#txtPaciente').val("");
+      $('#txtMedico').val("");
+      $('#txtDescripcion').val("");
+      $('#txtFecha').val("");
+      $('#modalFormulario').modal();
+    });
+  }
+
+  const guardar = () => {
+    $('#btnGuardar').on('click', function() {
+      const idReceta = $('#txtIdReceta').val();
+      const nuevaPaciente = $('#txtPaciente').val();
+      const nuevaMedico = $('#txtMedico').val();
+      const nuevaDescripcion = $('#txtDescripcion').val();
+      const nuevaFecha = $('#txtFecha').val();
+      const tabla = $('#tbl').DataTable();
+
+      if(idReceta) {
+        // update
+        fetch(`/api/v1/recetas/${idReceta}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          }, body: JSON.stringify({ 
+            paciente: nuevaPaciente,
+            medico: nuevaMedico,
+            descripcion: nuevaDescripcion,
+            fecha: nuevaFecha
+          })
+        })
+        .then(resp => resp.json())
+        .then(data => {
+          if(data && !data.error && data.success) {
+            tabla.ajax.reload();
+            Swal.fire("Actualizado", "La receta ha sido actualizada correctamente.", "success");
+          } else {
+            Swal.fire(data.error);
+          }
+        }).catch(err => {
+          console.error(err);
+          Swal.fire("Error", "Ocurrió un error al actualizar la receta.", "error");
+        });
+      } else {
+        // insert
+        fetch(`/api/v1/recetas`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }, body: JSON.stringify({ 
+            paciente: nuevaPaciente,
+            medico: nuevaMedico,
+            descripcion: nuevaDescripcion,
+            fecha: nuevaFecha
+          })
+        })
+        .then(resp => resp.json())
+        .then(data => {
+          if(data && !data.error && data.success) {
+            tabla.ajax.reload();
+            Swal.fire("Guardado", "La receta ha sido agregada correctamente.", "success");
+          } else {
+            Swal.fire(data.error);
+          }
+        }).catch(err => {
+          console.error(err);
+          Swal.fire("Error", "Ocurrió un error al guardar la receta.", "error");
+        });
+      }
+      $('#txtPaciente').val("");
+      $('#modalFormulario').modal("hide");
+    });
+  }
+
+  const editar = () => {
+    $('#tbl').on('click', 'button[name="btn_editar"]',function(){
+      Swal.fire({
+        title: "¿Deseas editar este registro?",
+        showCancelButton: true,
+        confirmButtonText: "Si",
+        cancelButtonText: `No`
+      }).then((result) => {
+        if (result.isConfirmed) {
+          $('#modalTitle').text("Editar una Receta");
+
+          const idReceta = $(this).data('id');
+          $('#txtIdReceta').val(idReceta);
+
+          fetch(`/api/v1/recetas/${idReceta}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          })
+          .then(resp => resp.json())
+          .then(data => {
+            $('#txtPaciente').val(data.data.paciente);
+            $('#txtMedico').val(data.data.medico);
+            $('#txtDescripcion').val(data.data.descripcion);
+            $('#txtFecha').val(data.data.fecha);
+            $('#modalFormulario').modal();
+          });
+        }
+      });
+    });
+  }
+
+  const eliminar = () => {
+    $('#tbl').on('click', 'button[name="btn_eliminar"]',function(){
+      const idReceta = $(this).data('id');
+      Swal.fire({
+        title: "¿Deseas eliminar este registro?",
+        showCancelButton: true,
+        confirmButtonText: "Si",
+        cancelButtonText: `No`
+      }).then((result) => {
+        if (result.isConfirmed) {
+          fetch(`/api/v1/recetas/${idReceta}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          })
+          .then(resp => resp.json())
+          .then(data => {
+            if(data && !data.error && data.success) {
+              const fila =$(this).closest('tr');
+              const tabla = $('#tbl').DataTable();
+              tabla.row(fila).remove().draw();
+              Swal.fire("Eliminado", "", data.success);
+            } else {
+              Swal.fire(data.error);
+            }
+          }).catch(err => {
+            Swal.fire("Error", "Ocurrió un error al eliminar la receta.", "error");
+          });
+        }
+      });
+
+    });
+  }
+
+  const addEvents = () => {
+    agregar();
+    guardar();
+    editar();
+    eliminar();
+  }
+
+  $(function() {
+    initDatatable();
+    addEvents();
+  });
+</script>
+{% endblock %}
